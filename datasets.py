@@ -3,6 +3,8 @@ import os, glob, cv2, sys
 import torch
 from pandas import read_csv
 
+#test
+
 class HAR_dataset(torch.utils.data.Dataset):
 	def __init__(self, std=0.1, mean=0):
 		self.std = std
