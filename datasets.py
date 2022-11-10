@@ -3,8 +3,6 @@ import os, glob, cv2, sys
 import torch
 from pandas import read_csv
 
-#test
-
 class HAR_dataset(torch.utils.data.Dataset):
 	def __init__(self, std=0.1, mean=0):
 		self.std = std
@@ -26,7 +24,7 @@ class HAR_dataset(torch.utils.data.Dataset):
 	#sliding window data preparation
 	
 	def format_data(self):
-		dx = 256
+		dx = 64
 		cur = 0
 		inc = 1
 		self.data = []
@@ -49,7 +47,8 @@ class HAR_dataset(torch.utils.data.Dataset):
 	
 	def __getitem__(self, index):
 		reg = self.data[index]
-		reg = torch.tensor(reg, dtype=torch.float).unsqueeze(0)
+		#reg = torch.tensor(reg, dtype=torch.float).unsqueeze(0)
+		reg = torch.tensor(reg, dtype=torch.float)
 		#add something with noise
 		noised = reg + torch.randn(reg.size(), dtype=torch.float) * self.std + self.mean
 		return reg, noised
