@@ -38,9 +38,9 @@ class HAR_dataset(torch.utils.data.Dataset):
 				x_vals.append(self.subject[i][0])
 				y_vals.append(self.subject[i][1])
 				z_vals.append(self.subject[i][2])
-				if (self.subject[i][3] != value):
+				'''if (self.subject[i][3] != value):
 					add = False
-					break
+					break'''
 			if (add):
 				self.data.append([x_vals, y_vals, z_vals])
 			cur += inc
