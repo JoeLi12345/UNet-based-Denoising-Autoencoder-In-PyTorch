@@ -26,13 +26,13 @@ resume : false
 # False for trainig from scratch, True for loading a previously saved weight
 ckpt : 'model01.pth' 
 # model file path to load the weights from, only useful when resume is True
-lr : 1.0e-5
+lr : 2.23e-5
           # learning rate
 epochs : 12        
 # epochs to train for 
 
 # batch size for train and val loaders
-batch_size : 32 
+batch_size : 175 
 # try decreasing the batch_size if there is a memory error
 
 # log interval for training and validation

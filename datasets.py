@@ -4,7 +4,7 @@ import torch
 from pandas import read_csv
 
 class HAR_dataset(torch.utils.data.Dataset):
-	def __init__(self, std=0.1, mean=0):
+	def __init__(self, std=0, mean=0):
 		self.std = std
 		self.mean = mean
 		self.load_dataset()
