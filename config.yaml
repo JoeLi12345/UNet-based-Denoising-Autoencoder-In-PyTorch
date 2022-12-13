@@ -12,7 +12,7 @@ noisy_dir : 'noisy'
 debug_dir : 'debug'
 
 # depth of UNet 
-depth : 4 
+depth : 2
 # try decreasing the depth value if there is a memory error
 
 # text file to get text from
@@ -26,13 +26,14 @@ resume : false
 # False for trainig from scratch, True for loading a previously saved weight
 ckpt : 'model01.pth' 
 # model file path to load the weights from, only useful when resume is True
-lr : 2.23e-5
-          # learning rate
-epochs : 12        
+lr : 6.48146e-5
+
+# learning rate
+epochs : 36        
 # epochs to train for 
 
 # batch size for train and val loaders
-batch_size : 175 
+batch_size : 35 
 # try decreasing the batch_size if there is a memory error
 
 # log interval for training and validation
