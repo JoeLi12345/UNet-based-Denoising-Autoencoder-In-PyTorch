@@ -18,30 +18,26 @@ from unet import UNet
 from datasets import HAR_dataset
 
 import yaml
-config_path = "config.yaml"  if len(sys.argv) < 2 else sys.argv[-1]
+config_path = "config.yaml"
 with open(config_path, 'r') as file:
 	config = yaml.safe_load(file) 
 from torch.utils.data import DataLoader
 import wandb
 
 dataset = HAR_dataset()
-sz = int(0.7*len(dataset))
-sz2 = int(0.15*len(dataset))
-train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(dataset, [sz, sz2, len(dataset)-sz-sz2], generator=torch.Generator().manual_seed(42))
-
-#tr_mean = train_dataset.mean()
-#print(tr_mean)
-
-
-#print(config.data_dir)
+train_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz))
+val_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz, dataset.train_sz+dataset.val_sz))
+test_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz+dataset.val_sz, dataset.train_sz+dataset.val_sz+dataset.test_sz))
+print("total=", len(dataset), "train=", len(train_dataset), "val=", len(val_dataset), "test=", len(test_dataset))
 
 # defining the model
 def train():
 		
-	wandb.init(project="unet_ssl", entity="jli505", config=config, name="MLP", reinit=True)
+	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
+	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
+	os.makedirs(checkpoints_dir, exist_ok = True)
 	cfg = wandb.config
 	#print(cfg.lr)
-
 	test_dir = f"{cfg.data_dir}/{cfg.val_dir}/{cfg.noisy_dir}"
 
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -100,36 +96,13 @@ def train():
 		plt.savefig(os.path.join(losses_dir,'losses_{}.png'.format(str(epoch + 1).zfill(2))))
 
 	transform = transforms.Compose([transforms.ToPILImage(), transforms.ToTensor()])
-
-
-	#train_dataset	   = HAR_dataset()
-	#val_dataset		 = HAR_dataset()
-
-	#print('\nlen(train_dataset) : ', len(train_dataset))
-	#print('len(val_dataset)   : ', len(val_dataset))
 	batch_size = cfg.batch_size
-
-	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
-
-	#print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
-
-	for img, noised in train_loader:
-		print(img.shape)
-		print(noised.shape)
-		#for img, noised in
-		break
-	#print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
-	batch_size = cfg.batch_size
-
 	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 	val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = batch_size, shuffle = not True)
 
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
 	print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
-	if cfg.get("model", "unet") == "MLP":
-		model = MLP(window_length = 64, in_channels = 3)
-	else :
-		model = UNet(n_classes = 3, depth = cfg.depth, wf=2, padding = True) # try decreasing the depth value if there is a memory error
+	model = UNet(n_classes = 3, depth = cfg.depth, wf=2, padding = True) # try decreasing the depth value if there is a memory error
 	model.to(device)
 	resume = cfg.resume
 
@@ -160,15 +133,7 @@ def train():
 
 	log_interval = cfg.log_interval
 	epochs = cfg.epochs
-
-	'''
-	print('\nmodel has {} M parameters'.format(count_parameters(model)))
-	print(f'\nloss_fn		: {loss_fn}')
-	print(f'lr			 : {lr}')
-	print(f'epochs_till_now: {epochs_till_now}')
-	print(f'epochs from now: {epochs}')
-	'''
-
+	min_val_loss = 1000000000
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		#print('\n===== EPOCH {}/{} ====='.format(epoch + 1, epochs_till_now + epochs))	
 		#print('\nTRAINING...')
@@ -229,6 +194,14 @@ def train():
 					#print('val loss   @batch_idx {}/{}: {}'.format(str(batch_idx+1).zfill(len(str(len(val_loader)))), len(val_loader), loss.item()))
 
 		mean_val_loss = np.array(running_val_loss).mean()
+		if mean_val_loss < min_val_loss:
+			torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'loss': loss
+            }, f"{checkpoints_dir}/best.pt") #replace path
+		min_val_loss = min(min_val_loss, mean_val_loss)	
 		val_epoch_loss.append(mean_val_loss)
 		wandb.log({"val_loss":mean_val_loss})
 
