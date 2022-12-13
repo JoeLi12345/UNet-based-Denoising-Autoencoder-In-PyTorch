@@ -42,12 +42,13 @@ class UNet_Fine(nn.Module):
 		self.layer2 = nn.Linear(hidden_dim, num_classes)
 		self.relu = nn.ReLU()
 		self.flatten = nn.Flatten()
-		self.model = nn.Sequential(self.model, self.flatten, self.relu, self.layer1, self.relu, self.layer2, self.relu)
+		self.head = nn.Sequential(self.flatten, self.relu, self.layer1, self.relu, self.layer2, self.relu)
 		#self.window_length = window_length
 		#self.in_channels = in_channels
 
 	def forward(self, x):
 		#x=self.flatten(x)
-		x=self.model(x)
+		x=self.foundation_model.bottleneck(x)
+		x=self.head(x)
 		#x=torch.reshape(x, (-1, self.in_channels, self.window_length))
 		return x
