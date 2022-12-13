@@ -12,7 +12,7 @@ noisy_dir : 'noisy'
 debug_dir : 'debug'
 
 # depth of UNet 
-depth : 3 
+depth : 2
 # try decreasing the depth value if there is a memory error
 
 # text file to get text from
@@ -26,13 +26,13 @@ resume : false
 # False for trainig from scratch, True for loading a previously saved weight
 ckpt : 'model01.pth' 
 # model file path to load the weights from, only useful when resume is True
-lr : 0.00002904256246066257
+lr : 0.000006481460531048047
           # learning rate
 epochs : 36        
 # epochs to train for 
 
 # batch size for train and val loaders
-batch_size : 55 
+batch_size : 35 
 # try decreasing the batch_size if there is a memory error
 
 # log interval for training and validation
@@ -42,3 +42,4 @@ log_interval : 25
 res_dir : 'results'
 test_bs : 64
 
+checkpoint_path : '/home/joe/Desktop/unet/UNet-based-Denoising-Autoencoder-In-PyTorch/wandb/run-20221211_143736-3x9sz752/files/checkpoints/best.pt'
