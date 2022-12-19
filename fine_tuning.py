@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from collections import Counter
 plt.switch_backend('agg') # for servers not supporting display
 
 sys.path.insert(0,'..')
@@ -33,6 +34,19 @@ train_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz))
 val_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz, dataset.train_sz+dataset.val_sz))
 test_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz+dataset.val_sz, dataset.train_sz+dataset.val_sz+dataset.test_sz))
 print("total=", len(dataset), "train=", len(train_dataset), "val=", len(val_dataset), "test=", len(test_dataset))
+
+def make_weights_for_balanced_classes(data, nclasses):
+	freqs = [0]*nclasses
+	for (reg, activity) in data:
+		freqs[activity] += 1
+	weight_per_class = [0.]*nclasses
+	N = float(sum(freqs))
+	for i in range(1, nclasses):
+		weight_per_class[i] = N/float(freqs[i])
+	weight = [0]*len(data)
+	for idx, val in enumerate(data):
+		weight[idx] = weight_per_class[val[1]]
+	return weight
 
 unet_pretrained = UNet(n_classes = 3, depth = config['depth'], wf=2, padding = True)
 #optimizer = Adam(*args, **kwargs)
@@ -117,8 +131,12 @@ def train():
 	transform = transforms.Compose([transforms.ToPILImage(), transforms.ToTensor()])
 	
 	batch_size = cfg.batch_size
-
-	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
+	weights = make_weights_for_balanced_classes(train_dataset, 8)
+	weights = torch.DoubleTensor(weights)
+	sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, sampler = sampler)
+	
+	#train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 	val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = batch_size, shuffle = not True)
 
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
