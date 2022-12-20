@@ -4,12 +4,14 @@ import torch
 import random
 from pandas import read_csv
 
+#Data Loader for pretraining task
 class HAR_dataset(torch.utils.data.Dataset):
 	def __init__(self, transform=None):
 		self.transform = transform
 		self.load_dataset()
 		self.format_data()
 
+	#load the files from HAR directory
 	def load_dataset(self):
 		subjects = list()
 		directory = '../HAR/'
@@ -21,8 +23,9 @@ class HAR_dataset(torch.utils.data.Dataset):
 			values = df.values[:,1:]
 			subjects.append(values)
 		self.subject = subjects[0]
-	#sliding window data preparation
 	
+	#create "self.data" such that the data is in the order of train, val, and test
+	#create windows with 64 data points each
 	def format_data(self):
 		print(len(self.subject))
 		dx = 64
@@ -33,6 +36,7 @@ class HAR_dataset(torch.utils.data.Dataset):
 		category = []
 		for i in range(num_activities):
 			category.append([])
+		#partition into windows of length 64
 		while (cur+dx-1 < len(self.subject)):
 			value = round(self.subject[cur][3])
 			add = True
@@ -49,11 +53,11 @@ class HAR_dataset(torch.utils.data.Dataset):
 			if (add):
 				category[value].append([x_vals, y_vals, z_vals])
 			cur += inc
+		#divide the data between train, val, and test according to the 70-15-15 split
 		train_data, val_data, test_data = [], [], []
 		for i in range(num_activities):
 			if len(category[i]) == 0:
 				continue
-			#print(i, ":", len(category[i]))
 			train_cnt = int(0.7*len(category[i]))
 			val_cnt = int(0.15*len(category[i]))
 			test_cnt = len(category[i])-train_cnt-val_cnt
@@ -63,6 +67,7 @@ class HAR_dataset(torch.utils.data.Dataset):
 				val_data.append(category[i][j])
 			for j in range(train_cnt+val_cnt, train_cnt+val_cnt+test_cnt):
 				test_data.append(category[i][j])
+		#add the train, val, test back to self.data --> now you know exactly where the train, val, and test data points are when you access "self.data" outside of this class
 		self.train_sz = len(train_data)
 		self.val_sz = len(val_data)
 		self.test_sz = len(test_data)
@@ -73,10 +78,10 @@ class HAR_dataset(torch.utils.data.Dataset):
 		for i in test_data:
 			self.data.append(i)
 			
-	
 	def __getitem__(self, index):
 		reg = self.data[index]
 		noised = reg
+		#implement masking by randomly selecting some data points to mask out
 		subset_indices = random.sample(range(len(reg)), int(random.uniform(0, 0.15)*len(reg)))
 		for i in subset_indices:
 			noised[i] = [-1, -1, -1]
@@ -90,13 +95,14 @@ class HAR_dataset(torch.utils.data.Dataset):
 	def __len__(self):
 		return len(self.data)
 
-
+#data loader for the transfer learning task
 class HAR_dataset_fine(HAR_dataset):
 	def __init__(self, **kwargs):
 		super().__init__(**kwargs)
 		self.load_dataset()
 		self.format_data()
 
+	#load dataset from HAR
 	def load_dataset(self):
 		subjects = list()
 		directory = '../HAR/'
@@ -108,8 +114,8 @@ class HAR_dataset_fine(HAR_dataset):
 			values = df.values[:,1:]
 			subjects.append(values)
 		self.subject = subjects[0]
-	#sliding window data preparation
 	
+	#exactly the same as the parent method, except now we maintain the activity
 	def format_data(self):
 		print(len(self.subject))
 		dx = 64
@@ -141,7 +147,6 @@ class HAR_dataset_fine(HAR_dataset):
 		for i in range(num_activities):
 			if len(category[i]) == 0:
 				continue
-			#print(i, ":", len(category[i]))
 			train_cnt = int(0.7*len(category[i]))
 			val_cnt = int(0.15*len(category[i]))
 			test_cnt = len(category[i])-train_cnt-val_cnt
@@ -163,15 +168,13 @@ class HAR_dataset_fine(HAR_dataset):
 		for i in test_data:
 			self.data.append(i[0])
 			self.labels.append(i[1])
-			
+
+	#returns the data and its label
 	def __getitem__(self, index):
 		reg = self.data[index]
 		reg = torch.tensor(reg, dtype=torch.float)
 		activity = self.labels[index]
-		#print("act:\n", activity)
 		activity = torch.tensor(activity, dtype=torch.int64)
-		#print("reg:\n", reg)
-		#print("act:\n", activity)
 		if self.transform:
 			reg = self.transform(reg)
 		return reg, activity

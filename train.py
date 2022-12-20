@@ -24,20 +24,21 @@ with open(config_path, 'r') as file:
 from torch.utils.data import DataLoader
 import wandb
 
+#loading the training, validation, and testing datasets
 dataset = HAR_dataset()
 train_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz))
 val_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz, dataset.train_sz+dataset.val_sz))
 test_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz+dataset.val_sz, dataset.train_sz+dataset.val_sz+dataset.test_sz))
 print("total=", len(dataset), "train=", len(train_dataset), "val=", len(val_dataset), "test=", len(test_dataset))
 
-# defining the model
+
 def train():
-		
+	#initialization of directories and wandb
 	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
 	cfg = wandb.config
-	#print(cfg.lr)
+	
 	test_dir = f"{cfg.data_dir}/{cfg.val_dir}/{cfg.noisy_dir}"
 
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -61,10 +62,11 @@ def train():
 	if not os.path.exists(losses_dir):
 		os.mkdir(losses_dir)
 
+	#unused
 	def count_parameters(model):
 		num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 		return num_parameters/1e6 # in terms of millions
-
+	#unused
 	def plot_losses(running_train_loss, running_val_loss, train_epoch_loss, val_epoch_loss, epoch):
 		fig = plt.figure(figsize=(16,16))
 		fig.suptitle('loss trends', fontsize=20)
@@ -95,17 +97,20 @@ def train():
 		
 		plt.savefig(os.path.join(losses_dir,'losses_{}.png'.format(str(epoch + 1).zfill(2))))
 
+	#create data loaders for train, val, test
 	transform = transforms.Compose([transforms.ToPILImage(), transforms.ToTensor()])
 	batch_size = cfg.batch_size
 	train_loader = torch.utils.data.DataLoader(train_dataset, batch_size = batch_size, shuffle = True)
 	val_loader = torch.utils.data.DataLoader(val_dataset, batch_size = batch_size, shuffle = not True)
 
+	#defining the UNET model here
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
 	print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
 	model = UNet(n_classes = 3, depth = cfg.depth, wf=2, padding = True) # try decreasing the depth value if there is a memory error
 	model.to(device)
 	resume = cfg.resume
 
+	#whether or not a model is already saved - I always start from scratch so resume is always false
 	if not resume:
 		print('\nfrom scratch')
 		train_epoch_loss = []
@@ -127,6 +132,7 @@ def train():
 		val_epoch_loss = losses['val_epoch_loss']
 		epochs_till_now = ckpt['epochs_till_now']
 
+	#learning rate, optimizer, loss function
 	lr = cfg.lr
 	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
 	loss_fn = nn.MSELoss()
@@ -134,13 +140,13 @@ def train():
 	log_interval = cfg.log_interval
 	epochs = cfg.epochs
 	min_val_loss = 1000000000
+	#epochs for training and validation
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
-		#print('\n===== EPOCH {}/{} ====='.format(epoch + 1, epochs_till_now + epochs))	
-		#print('\nTRAINING...')
 		epoch_train_start_time = time.time()
 		model.train()
 		tr_mean = 0
 		tr_mean_loss = 0
+		#training
 		for batch_idx, (imgs, noisy_imgs) in enumerate(train_loader):
 			batch_start_time = time.time()
 			imgs = imgs.to(device)
@@ -148,8 +154,6 @@ def train():
 			noisy_imgs = noisy_imgs.to(device)
 			optimizer.zero_grad()
 			out = model(noisy_imgs)
-			#print(out.shape)
-			#print(noisy_imgs.shape)
 			loss = loss_fn(out, imgs)
 			tr_mean_loss += loss_fn(imgs.mean(dim=0, keepdim=True), imgs)
 			running_train_loss.append(loss.item())
@@ -161,21 +165,18 @@ def train():
 				m,s = divmod(batch_time, 60)
 				#print('train loss @batch_idx {}/{}: {} in {} mins {} secs (per batch)'.format(str(batch_idx+1).zfill(len(str(len(train_loader)))), len(train_loader), loss.item(), int(m), round(s, 2)))
 
+		#keeping track of losses to store in wandb
 		tr_mean /= len(train_loader)
-		#print(tr_mean)
 		tr_mean_loss /= len(train_loader)
-		#print(tr_mean_loss)
 		mean_train_loss = np.array(running_train_loss).mean()
 		train_epoch_loss.append(mean_train_loss)
-		#wandb.log({"epoch":epoch})
 		wandb.log({"train_loss":mean_train_loss})
 
 		epoch_train_time = time.time() - epoch_train_start_time
 		m,s = divmod(epoch_train_time, 60)
 		h,m = divmod(m, 60)
-		#print('\nepoch train time: {} hrs {} mins {} secs'.format(int(h), int(m), int(s)))
-
-		#print('\nVALIDATION...')
+		
+		#begin validation
 		epoch_val_start_time = time.time()
 		model.eval()
 		with torch.no_grad():
@@ -186,13 +187,10 @@ def train():
 
 				out = model(noisy_imgs)
 				loss = loss_fn(out, imgs)
-				#print(out, loss)
 
 				running_val_loss.append(loss.item())
 
-				#if (batch_idx + 1)%log_interval == 0:
-					#print('val loss   @batch_idx {}/{}: {}'.format(str(batch_idx+1).zfill(len(str(len(val_loader)))), len(val_loader), loss.item()))
-
+		#if the new validation loss is smaller then update the model
 		mean_val_loss = np.array(running_val_loss).mean()
 		if mean_val_loss < min_val_loss:
 			torch.save({

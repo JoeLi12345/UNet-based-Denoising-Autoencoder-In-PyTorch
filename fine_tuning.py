@@ -29,12 +29,14 @@ import wandb
 '''dataset = HAR_dataset_fine(transform = transforms.Compose([
 			  transforms.ToTensor()
 		  ]))'''
+#creates the train, val, and test datasets
 dataset=HAR_dataset_fine()
 train_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz))
 val_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz, dataset.train_sz+dataset.val_sz))
 test_dataset = torch.utils.data.Subset(dataset, range(dataset.train_sz+dataset.val_sz, dataset.train_sz+dataset.val_sz+dataset.test_sz))
 print("total=", len(dataset), "train=", len(train_dataset), "val=", len(val_dataset), "test=", len(test_dataset))
 
+#used to generate weights for the WeightedRandomSampling used in the dataloader
 def make_weights_for_balanced_classes(data, nclasses):
 	freqs = [0]*nclasses
 	for (reg, activity) in data:
@@ -48,24 +50,22 @@ def make_weights_for_balanced_classes(data, nclasses):
 		weight[idx] = weight_per_class[val[1]]
 	return weight
 
+#loads the pretrained model from a saved checkpoint
 unet_pretrained = UNet(n_classes = 3, depth = config['depth'], wf=2, padding = True)
-#optimizer = Adam(*args, **kwargs)
 
 checkpoint = torch.load(config['checkpoint_path']) #replace this with the model path
 unet_pretrained.load_state_dict(checkpoint['model_state_dict'])
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 epoch = checkpoint['epoch']
 print("Epoch =", epoch)
 loss = checkpoint['loss']
 print("Loss =", loss)
 
-checkpoints_dir = f"temp"
-# defining the model
+checkpoints_dir = f"temp" #where the final model will be stored
+
 def train():
-		
+	#initializing directories and wandb
 	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
 	cfg = wandb.config
-	#print(cfg.lr)
 	global checkpoints_dir
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
@@ -94,10 +94,11 @@ def train():
 	if not os.path.exists(losses_dir):
 		os.mkdir(losses_dir)
 
+	#useless
 	def count_parameters(model):
 		num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 		return num_parameters/1e6 # in terms of millions
-
+	#useless
 	def plot_losses(running_train_loss, running_val_loss, train_epoch_loss, val_epoch_loss, epoch):
 		fig = plt.figure(figsize=(16,16))
 		fig.suptitle('loss trends', fontsize=20)
@@ -129,7 +130,8 @@ def train():
 		plt.savefig(os.path.join(losses_dir,'losses_{}.png'.format(str(epoch + 1).zfill(2))))
 
 	transform = transforms.Compose([transforms.ToPILImage(), transforms.ToTensor()])
-	
+
+	#load the training dataset with a weighted sampler
 	batch_size = cfg.batch_size
 	weights = make_weights_for_balanced_classes(train_dataset, 8)
 	weights = torch.DoubleTensor(weights)
@@ -142,10 +144,12 @@ def train():
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
 	print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
 
+	#defines the model used in this fine tuning task
 	model = UNet_Fine(unet_pretrained) # try decreasing the depth value if there is a memory error
 	model.to(device)
 	resume = cfg.resume
 
+	#whether or not I already started training this model - I always set resume to false in the config file
 	if not resume:
 		print('\nfrom scratch')
 		train_epoch_loss = []
@@ -167,6 +171,7 @@ def train():
 		val_epoch_loss = losses['val_epoch_loss']
 		epochs_till_now = ckpt['epochs_till_now']
 
+	#learning rate, optimizer, loss function
 	lr = cfg.lr
 	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
 	loss_fn = nn.CrossEntropyLoss()
@@ -174,14 +179,14 @@ def train():
 	log_interval = cfg.log_interval
 	epochs = cfg.epochs
 
+	#training and validation - keep track of the minimum validation loss so that the model updates whenever it achieves a smaller validation loss
 	min_val_loss = 1000000000
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
-		#print('\n===== EPOCH {}/{} ====='.format(epoch + 1, epochs_till_now + epochs))	
-		#print('\nTRAINING...')
 		epoch_train_start_time = time.time()
 		model.train()
 		tr_mean = 0
 		tr_mean_loss = 0
+		#training loop
 		for batch_idx, (imgs, activity) in enumerate(train_loader):
 			batch_start_time = time.time()
 			imgs = imgs.to(device)
@@ -189,10 +194,7 @@ def train():
 			tr_mean += imgs.mean(dim=0, keepdim=True)
 			optimizer.zero_grad()
 			out = model(imgs)
-			#print(out.shape)
-			#print(noisy_imgs.shape)
 			loss = loss_fn(out, activity)
-			#tr_mean_loss += loss_fn(imgs.mean(dim=0, keepdim=True), imgs)
 			running_train_loss.append(loss.item())
 			loss.backward()
 			optimizer.step()
@@ -200,23 +202,19 @@ def train():
 			if (batch_idx + 1)%log_interval == 0:
 				batch_time = time.time() - batch_start_time
 				m,s = divmod(batch_time, 60)
-				#print('train loss @batch_idx {}/{}: {} in {} mins {} secs (per batch)'.format(str(batch_idx+1).zfill(len(str(len(train_loader)))), len(train_loader), loss.item(), int(m), round(s, 2)))
 
 		tr_mean /= len(train_loader)
-		#print(tr_mean)
 		tr_mean_loss /= len(train_loader)
-		#print(tr_mean_loss)
 		mean_train_loss = np.array(running_train_loss).mean()
 		train_epoch_loss.append(mean_train_loss)
-		#wandb.log({"epoch":epoch})
 		wandb.log({"train_loss":mean_train_loss})
 
+		#used to keep track of how long it takes the model to train
 		epoch_train_time = time.time() - epoch_train_start_time
 		m,s = divmod(epoch_train_time, 60)
 		h,m = divmod(m, 60)
-		#print('\nepoch train time: {} hrs {} mins {} secs'.format(int(h), int(m), int(s)))
 
-		#print('\nVALIDATION...')
+		#validation loop
 		epoch_val_start_time = time.time()
 		model.eval()
 		with torch.no_grad():
@@ -224,17 +222,14 @@ def train():
 
 				imgs = imgs.to(device)
 				activity = activity.to(device)
-				#noisy_imgs = noisy_imgs.to(device)
-
+				
 				out = model(imgs)
 				loss = loss_fn(out, activity)
-				#print(out, loss)
+				
 
 				running_val_loss.append(loss.item())
 
-				#if (batch_idx + 1)%log_interval == 0:
-					#print('val loss   @batch_idx {}/{}: {}'.format(str(batch_idx+1).zfill(len(str(len(val_loader)))), len(val_loader), loss.item()))
-
+		#logging the losses on wandb
 		mean_val_loss = np.array(running_val_loss).mean()
 		if mean_val_loss < min_val_loss:
 			torch.save({
@@ -262,16 +257,15 @@ train()
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
-
+#testing the accuracy of my model
 test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 unet_pretrained = UNet(n_classes = 3, depth = config['depth'], wf=2, padding = True)
 model = UNet_Fine(unet_pretrained)
-#optimizer = Adam(*args, **kwargs)
 
 checkpoint = torch.load(f"{checkpoints_dir}/best.pt") #replace this with the model path
 model.load_state_dict(checkpoint['model_state_dict'])
 model.to(device)
-#optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
 epoch = checkpoint['epoch']
 print("Epoch =", epoch)
 loss = checkpoint['loss']
@@ -289,7 +283,7 @@ with torch.no_grad():
 
 		imgs = imgs.to(device)
 		activity = activity.to(device)
-		#noisy_imgs = noisy_imgs.to(device)
+		
 
 		out = model(imgs)
 		loss = loss_fn(out, activity)
