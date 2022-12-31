@@ -13,8 +13,7 @@ class UNet(nn.Module):
 		batch_norm=False,
 		up_mode='upconv',
 	):
-		"""
-		Implementation of
+		"""Implementation of
 		U-Net: Convolutional Networks for Biomedical Image Segmentation
 		(Ronneberger et al., 2015)
 		https://arxiv.org/abs/1505.04597
