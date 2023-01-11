@@ -20,13 +20,11 @@ from unet_nn import UNet_Fine
 from datasets import WESADDatasetFine
 
 import yaml
-config_path = "config_wesad_supervised.yaml"  if len(sys.argv) < 2 else sys.argv[-1]
+config_path = "config_wesad_finetuning.yaml"  if len(sys.argv) < 2 else sys.argv[-1]
 with open(config_path, 'r') as file:
 	config = yaml.safe_load(file) 
 from torch.utils.data import DataLoader
 import wandb
-
-
 
 def init_wandb():
 	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
@@ -36,15 +34,13 @@ def init_wandb():
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
 
+#loads the pretrained model from a saved checkpoint
+
 def train(subject):
-	train_dataset = WESADDatasetFine(split="train", subject=subject, transform=None)
-	val_dataset = WESADDatasetFine(split="validation", subject=subject, transform=train_dataset.transform)
-	
-	print("train, val = ",len(train_dataset), len(val_dataset))
-	unet_pretrained = UNet(in_channels=train_dataset.in_channels, n_classes=train_dataset.in_channels, depth=config['depth'], wf=2, padding=True)
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 	print('device: ', device)
-
+	train_dataset = WESADDatasetFine(split="train", subject=subject)
+	val_dataset = WESADDatasetFine(split="validation", subject=subject)
 	script_time = time.time()
 	#load the training dataset with a weighted sampler
 	batch_size = cfg.batch_size
@@ -54,6 +50,15 @@ def train(subject):
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
 	print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
 
+
+	unet_pretrained = UNet(in_channels=train_dataset.in_channels, n_classes = train_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
+	checkpoint = torch.load(config['checkpoint_path']) #replace this with the model path
+	unet_pretrained.load_state_dict(checkpoint['model_state_dict'])
+	epoch = checkpoint['epoch']
+	print("Epoch =", epoch)
+	loss = checkpoint['loss']
+	print("Loss =", loss)
+
 	#defines the model used in this fine tuning task
 	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=256) # try decreasing the depth value if there is a memory error
 	model.to(device)
@@ -62,20 +67,17 @@ def train(subject):
 	lr = cfg.lr
 	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
 	loss_fn = nn.CrossEntropyLoss()
-
 	epochs = cfg.epochs
-
-	train_epoch_loss, val_epoch_loss = [], []
-	epochs_till_now = 0
 
 	#training and validation - keep track of the minimum validation loss so that the model updates whenever it achieves a smaller validation loss
 	min_val_loss = 1000000000
+	train_epoch_loss, val_epoch_loss = [], []
+	epochs_till_now = 0
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
+		print("Epoch {}:\n".format(epoch))
 		running_train_loss, running_val_loss = [], []
 		epoch_train_start_time = time.time()
 		model.train()
-		print("Epoch {}:\n".format(epoch))
-		
 		#training loop
 		for batch_idx, (imgs, activity) in enumerate(train_loader):
 			batch_start_time = time.time()
@@ -87,7 +89,6 @@ def train(subject):
 			running_train_loss.append(loss.item())
 			loss.backward()
 			optimizer.step()
-
 		mean_train_loss = np.array(running_train_loss).mean()
 		train_epoch_loss.append(mean_train_loss)
 		wandb.log({"train_loss":mean_train_loss})
@@ -95,9 +96,9 @@ def train(subject):
 		epoch_train_time = time.time() - epoch_train_start_time
 		m,s = divmod(epoch_train_time, 60)
 		h,m = divmod(m, 60)
+		print("train time: {} hrs {} mins {} secs".format(int(h), int(m), int(s)))
+		print("train loss: {}".format(mean_train_loss))
 
-		print('Train time: {} hrs {} mins {} secs'.format(int(h), int(m), int(s)))
-		print("Train loss: {}".format(mean_train_loss))
 		#validation loop
 		epoch_val_start_time = time.time()
 		model.eval()
@@ -130,8 +131,8 @@ def train(subject):
 		epoch_val_time = time.time() - epoch_val_start_time
 		m,s = divmod(epoch_val_time, 60)
 		h,m = divmod(m, 60)
-		print("Val time: {} hrs {} mins {} secs".format(int(h), int(m), int(s)))
-		print("Val loss: {}".format(mean_val_loss))
+		print("val time: {} hrs {} mins {} secs".format(int(h), int(m), int(s)))
+		print("val loss: {}".format(mean_val_loss))
 	total_script_time = time.time() - script_time
 	m, s = divmod(total_script_time, 60)
 	h, m = divmod(m, 60)
@@ -139,10 +140,8 @@ def train(subject):
 	print('\nFin.')
 
 def test(subject):
+	test_dataset = WESADDatasetFine(split="test", subject=subject)
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-	#testing the accuracy of my model
-	test_dataset = WESADDatasetFine(split="test", subject=subject, transform=train_dataset.transform)
-	print("test=", len(test_dataset))
 	test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 	unet_pretrained = UNet(in_channels=test_dataset.in_channels, n_classes = test_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
 	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=256)
@@ -173,18 +172,14 @@ def test(subject):
 			out = model(imgs)
 			loss = loss_fn(out, activity)
 			running_test_loss.append(loss.item())
+			print(out)
 			total += activity.size(0)
 			correct += (out.argmax(dim=1) == activity).sum().item()
 	wandb.log({"test_loss": np.array(running_test_loss).mean()})
-	return correct/total*100.0
+
+	print(f"Accuracy={correct/total*100}%")
 
 init_wandb()
-overall_acc = 0
-num_subjects = 15
-for i in range(0, 15):
-	train(i)
-	acc = test(i)
-	print("Subject {}: {}".format(i, acc))
-	overall_acc += acc
-overall_acc /= num_subjects
-print("Total Accuracy = ", overall_acc)
+train(0)
+test(0)
+
