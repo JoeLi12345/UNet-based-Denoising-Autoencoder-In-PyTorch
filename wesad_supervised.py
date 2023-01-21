@@ -13,6 +13,9 @@ sys.path.insert(0,'..')
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from torchvision import transforms
+import torchmetrics
+from torchmetrics.classification import MulticlassAccuracy
+from torchmetrics.classification import MulticlassF1Score
 
 from mlp import MLP
 from unet import UNet
@@ -37,8 +40,9 @@ def init_wandb():
 	os.makedirs(checkpoints_dir, exist_ok = True)
 
 def train(subject):
+	torch.manual_seed(1347)
 	train_dataset = WESADDatasetFine(split="train", subject=subject, transform=None)
-	val_dataset = WESADDatasetFine(split="validation", subject=subject, transform=train_dataset.transform)
+	val_dataset = WESADDatasetFine(split="validation", subject=subject, transform=None)
 	
 	print("train, val = ",len(train_dataset), len(val_dataset))
 	unet_pretrained = UNet(in_channels=train_dataset.in_channels, n_classes=train_dataset.in_channels, depth=config['depth'], wf=2, padding=True)
@@ -60,13 +64,16 @@ def train(subject):
 
 	#learning rate, optimizer, loss function
 	lr = cfg.lr
-	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
+	optimizer = optim.Adam(model.parameters(), lr = lr)
 	loss_fn = nn.CrossEntropyLoss()
 
 	epochs = cfg.epochs
-
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
+
+	patience = 10
+	current_repeat = 0
+	eps = 0.0001
 
 	#training and validation - keep track of the minimum validation loss so that the model updates whenever it achieves a smaller validation loss
 	min_val_loss = 1000000000
@@ -122,6 +129,12 @@ def train(subject):
 			'optimizer_state_dict': optimizer.state_dict(),
 			'loss': loss
 			}, f"{checkpoints_dir}/best.pt") #replace path
+		if min_val_loss-mean_val_loss < eps:
+			current_repeat += 1
+		else:
+			current_repeat = 0
+		if current_repeat == patience:
+			break
 		min_val_loss = min(min_val_loss, mean_val_loss)	
 
 		val_epoch_loss.append(mean_val_loss)
@@ -141,8 +154,9 @@ def train(subject):
 def test(subject):
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 	#testing the accuracy of my model
-	test_dataset = WESADDatasetFine(split="test", subject=subject, transform=train_dataset.transform)
+	test_dataset = WESADDatasetFine(split="test", subject=subject)
 	print("test=", len(test_dataset))
+
 	test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 	unet_pretrained = UNet(in_channels=test_dataset.in_channels, n_classes = test_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
 	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=256)
@@ -161,6 +175,9 @@ def test(subject):
 	correct = 0
 	total = 0
 
+	preds, target = [], []
+	frequency = [0]*3
+
 	loss_fn = nn.CrossEntropyLoss()
 	with torch.no_grad():
 		running_test_loss = []
@@ -168,23 +185,40 @@ def test(subject):
 
 			imgs = imgs.to(device)
 			activity = activity.to(device)
-			
 
 			out = model(imgs)
 			loss = loss_fn(out, activity)
 			running_test_loss.append(loss.item())
 			total += activity.size(0)
 			correct += (out.argmax(dim=1) == activity).sum().item()
+			preds.extend(out.argmax(dim=1).tolist())
+			target.extend(activity.tolist())
+			for x in activity.tolist():
+				frequency[x] += 1
 	wandb.log({"test_loss": np.array(running_test_loss).mean()})
-	return correct/total*100.0
+
+	print("frequency= ", frequency)
+
+	metric1 = MulticlassAccuracy(num_classes=3, average='micro')
+	metric2 = MulticlassAccuracy(num_classes=3, average='macro')
+	metric3 = MulticlassF1Score(num_classes=3, average='micro')
+	metric4 = MulticlassF1Score(num_classes=3, average='macro')
+	preds = torch.tensor(preds)
+	target = torch.tensor(target)
+
+	return metric1(preds, target), metric2(preds, target), metric3(preds, target), metric4(preds, target)
 
 init_wandb()
 overall_acc = 0
 num_subjects = 15
 for i in range(0, 15):
 	train(i)
-	acc = test(i)
-	print("Subject {}: {}".format(i, acc))
+	acc, acc1, f1, f11 = test(i)
+	print("Subject {}: acc={}, {} f1={}, {}".format(i, acc, acc1, f1, f11))
+	wandb.log({"acc": acc})
+	wandb.log({"acc1": acc1})
+	wandb.log({"f1": f1})
+	wandb.log({"f11": f11})
 	overall_acc += acc
 overall_acc /= num_subjects
 print("Total Accuracy = ", overall_acc)

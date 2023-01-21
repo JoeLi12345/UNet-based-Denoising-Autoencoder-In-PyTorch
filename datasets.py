@@ -221,7 +221,6 @@ class WESADDataset(torch.utils.data.Dataset):
 		self.data, self.activities, category = [], [], []
 		for i in range(num_activities):
 			category.append([])
-		print(len(self.signals[0]), len(self.labels))
 		#partition into windows of length dx
 		while (cur+dx-1 < len(self.signals[0])):
 			value = self.labels[cur]

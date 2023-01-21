@@ -85,12 +85,14 @@ class UNetConvBlock(nn.Module):
 		block = []
 
 		block.append(nn.Conv1d(in_size, out_size, kernel_size=3, padding=int(padding)))
-		block.append(nn.ReLU())
+		# block.append(nn.ReLU())
+		block.append(nn.SiLU())
 		if batch_norm:
 			block.append(nn.BatchNorm1d(out_size))
 
 		block.append(nn.Conv1d(out_size, out_size, kernel_size=3, padding=int(padding)))
-		block.append(nn.ReLU())
+		# block.append(nn.ReLU())
+		block.append(nn.SiLU())
 		block.append(nn.Dropout1d(p=0.15)) # edited
 		if batch_norm:
 			block.append(nn.BatchNorm1d(out_size))
