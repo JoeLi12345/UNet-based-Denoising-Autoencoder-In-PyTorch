@@ -211,10 +211,11 @@ def test(subject):
 init_wandb()
 overall_acc = 0
 num_subjects = 15
-for i in range(0, 15):
-	train(i)
-	acc, acc1, f1, f11 = test(i)
-	print("Subject {}: acc={}, {} f1={}, {}".format(i, acc, acc1, f1, f11))
+ord_subjects = np.random.permutation(15)
+for x in ord_subjects:
+	train(x)
+	acc, acc1, f1, f11 = test(x)
+	print("Subject {}: acc={}, {} f1={}, {}".format(x, acc, acc1, f1, f11))
 	wandb.log({"acc": acc})
 	wandb.log({"acc1": acc1})
 	wandb.log({"f1": f1})
