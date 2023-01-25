@@ -40,9 +40,9 @@ class UNet_Fine(nn.Module):
 		#self.input_dim = window_length*in_channels
 		self.layer1 = nn.Linear(self.bottleneck_dim, hidden_dim)
 		self.layer2 = nn.Linear(hidden_dim, num_classes)
-		self.relu = nn.ReLU()
+		self.silu = nn.SiLU()
 		self.flatten = nn.Flatten()
-		self.head = nn.Sequential(self.flatten, self.relu, self.layer1, self.relu, self.layer2, self.relu)
+		self.head = nn.Sequential(self.flatten, self.silu, self.layer1, self.silu, self.layer2, self.silu)
 		#self.window_length = window_length
 		#self.in_channels = in_channels
 
