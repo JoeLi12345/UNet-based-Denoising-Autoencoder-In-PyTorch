@@ -1,18 +1,9 @@
-program: config.yaml
-method: bayes
-metric:
-  name: validation_loss
-  goal: minimize
+program: config_wesad_pretraining.yaml
+method: random
 parameters:
   lr:
-    min: 1.0e-6
-    max: 1.0e-4
-  depth:
-    min: 2
-    max: 6
+    min: 1.0e-7
+    max: 1.0e-5
   batch_size:
     min: 32
     max: 256
-  
-  optimizer:
-    values: ["adam", "sgd"]

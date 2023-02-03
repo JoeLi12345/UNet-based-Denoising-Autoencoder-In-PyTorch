@@ -1,0 +1,5 @@
+# depth of UNet 
+depth : 3
+lr : 6.48146e-5
+epochs : 100     
+batch_size : 35 

@@ -18,6 +18,9 @@ from mlp import MLP
 from unet import UNet
 from unet_nn import UNet_Fine
 from datasets import WESADDatasetFine
+import torchmetrics
+from torchmetrics.classification import MulticlassAccuracy
+from torchmetrics.classification import MulticlassF1Score
 
 import yaml
 config_path = "config_wesad_finetuning.yaml"  if len(sys.argv) < 2 else sys.argv[-1]
@@ -33,14 +36,17 @@ def init_wandb():
 	global checkpoints_dir
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
+	print("cfg.lr=", cfg.lr)
 
 #loads the pretrained model from a saved checkpoint
 
-def train(subject):
+def train(subject, pretrain_checkpoints_dir=None):
+	torch.manual_seed(1347)
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 	print('device: ', device)
 	train_dataset = WESADDatasetFine(split="train", subject=subject)
 	val_dataset = WESADDatasetFine(split="validation", subject=subject)
+	print("train, val = ",len(train_dataset), len(val_dataset))
 	script_time = time.time()
 	#load the training dataset with a weighted sampler
 	batch_size = cfg.batch_size
@@ -52,7 +58,11 @@ def train(subject):
 
 
 	unet_pretrained = UNet(in_channels=train_dataset.in_channels, n_classes = train_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
-	checkpoint = torch.load(config['checkpoint_path']) #replace this with the model path
+
+	if pretrain_checkpoints_dir is None:
+		checkpoint = torch.load(config['checkpoint_path']) #replace this with the model path
+	else:
+		checkpoint = torch.load(pretrain_checkpoints_dir+"/best.pt")
 	unet_pretrained.load_state_dict(checkpoint['model_state_dict'])
 	epoch = checkpoint['epoch']
 	print("Epoch =", epoch)
@@ -65,7 +75,7 @@ def train(subject):
 
 	#learning rate, optimizer, loss function
 	lr = cfg.lr
-	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
+	optimizer = optim.Adam(model.parameters(), lr = lr)
 	loss_fn = nn.CrossEntropyLoss()
 	epochs = cfg.epochs
 
@@ -73,6 +83,11 @@ def train(subject):
 	min_val_loss = 1000000000
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
+
+	patience = 10
+	current_repeat = 0
+	eps = 0.0001
+	
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		print("Epoch {}:\n".format(epoch))
 		running_train_loss, running_val_loss = [], []
@@ -123,6 +138,12 @@ def train(subject):
 			'optimizer_state_dict': optimizer.state_dict(),
 			'loss': loss
 			}, f"{checkpoints_dir}/best.pt") #replace path
+		if min_val_loss-mean_val_loss < eps:
+			current_repeat += 1
+		else:
+			current_repeat = 0
+		if current_repeat == patience:
+			break
 		min_val_loss = min(min_val_loss, mean_val_loss)	
 
 		val_epoch_loss.append(mean_val_loss)
@@ -160,6 +181,9 @@ def test(subject):
 	correct = 0
 	total = 0
 
+	preds, target = [], []
+	frequency = [0]*3
+
 	loss_fn = nn.CrossEntropyLoss()
 	with torch.no_grad():
 		running_test_loss = []
@@ -167,19 +191,42 @@ def test(subject):
 
 			imgs = imgs.to(device)
 			activity = activity.to(device)
-			
 
 			out = model(imgs)
 			loss = loss_fn(out, activity)
 			running_test_loss.append(loss.item())
-			print(out)
 			total += activity.size(0)
 			correct += (out.argmax(dim=1) == activity).sum().item()
+			preds.extend(out.argmax(dim=1).tolist())
+			target.extend(activity.tolist())
+			for x in activity.tolist():
+				frequency[x] += 1
 	wandb.log({"test_loss": np.array(running_test_loss).mean()})
 
-	print(f"Accuracy={correct/total*100}%")
+	print("frequency= ", frequency)
 
-init_wandb()
-train(0)
-test(0)
+	metric1 = MulticlassAccuracy(num_classes=3, average='micro')
+	metric2 = MulticlassAccuracy(num_classes=3, average='macro')
+	metric3 = MulticlassF1Score(num_classes=3, average='micro')
+	metric4 = MulticlassF1Score(num_classes=3, average='macro')
+	preds = torch.tensor(preds)
+	target = torch.tensor(target)
 
+
+	acc, acc1, f1, f11 = metric1(preds, target), metric2(preds, target), metric3(preds, target), metric4(preds, target)
+	wandb.log({"acc": acc})
+	wandb.log({"acc1": acc1})
+	wandb.log({"f1": f1})
+	wandb.log({"f11": f11})
+	print("Subject {}: acc={}, {} f1={}, {}".format(subject, acc, acc1, f1, f11))
+	return acc, acc1, f1, f11
+
+'''init_wandb()
+subject = 0
+train(subject)
+acc, acc1, f1, f11 = test(subject)
+print("Subject {}: acc={}, {} f1={}, {}".format(subject, acc, acc1, f1, f11))
+wandb.log({"acc": acc})
+wandb.log({"acc1": acc1})
+wandb.log({"f1": f1})
+wandb.log({"f11": f11})'''

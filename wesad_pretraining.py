@@ -32,8 +32,11 @@ def init_wandb():
 	os.makedirs(checkpoints_dir, exist_ok = True)
 	global cfg
 	cfg = wandb.config
+	print("cfg.lr=", cfg.lr)
+	return checkpoints_dir
 
 def train(subject):
+	torch.manual_seed(1347)
 	train_dataset = WESADDataset(split="train", subject=subject)
 	val_dataset = WESADDataset(split="validation", subject=subject)
 	print("train, val = ", len(train_dataset), len(val_dataset))
@@ -56,13 +59,17 @@ def train(subject):
 
 	#learning rate, optimizer, loss function
 	lr = cfg.lr
-	optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr = lr)
+	optimizer = optim.Adam(model.parameters(), lr = lr)
 	loss_fn = nn.MSELoss()
 
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
 	epochs = cfg.epochs
 	min_val_loss = 1000000000
+
+	patience = 30
+	current_repeat = 0
+	eps = 0.0001
 	#epochs for training and validation
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		epoch_train_start_time = time.time()
@@ -115,6 +122,12 @@ def train(subject):
             'optimizer_state_dict': optimizer.state_dict(),
             'loss': loss
             }, f"{checkpoints_dir}/best.pt") #replace path
+		if min_val_loss-mean_val_loss < eps:
+			current_repeat += 1
+		else:
+			current_repeat = 0
+		if current_repeat == patience:
+			break
 		min_val_loss = min(min_val_loss, mean_val_loss)	
 		val_epoch_loss.append(mean_val_loss)
 		wandb.log({"val_loss":mean_val_loss})
@@ -129,6 +142,3 @@ def train(subject):
 	h, m = divmod(m, 60)
 	print(f'\ntotal time taken for running this script: {int(h)} hrs {int(m)} mins {int(s)} secs')
 	print('\nFin.')
-
-init_wandb()
-train(0)
