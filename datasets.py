@@ -260,6 +260,10 @@ class WESADDataset(torch.utils.data.Dataset):
 				self.data.append(category[i][j][0])
 				self.activities.append(i)
 				self.same_label.append(category[i][j][1])
+		self.mean = np.expand_dims(np.array(self.data).mean(axis=(0, 2)), -1)
+		self.std = np.expand_dims(np.array(self.data).std(axis=(0, 2)), -1)
+		if self.transform is None:
+			self.transform = lambda x: (x-self.mean)/self.std
 
 	def __getitem__(self, index):
 		reg = self.data[index]
@@ -269,7 +273,7 @@ class WESADDataset(torch.utils.data.Dataset):
 		cnt=0
 		for i in subset_indices:
 			for j in range(len(noised)):
-				noised[j][i] = -1
+				noised[j][i] = -10000
 				cnt += 1
 		reg = torch.tensor(reg, dtype=torch.float)
 		noised = torch.tensor(noised, dtype=torch.float)
@@ -289,6 +293,13 @@ class WESADDatasetFine(WESADDataset):
 		self.remove_percent = remove_percent
 		if split == "train":
 			self.remove_labeled()
+		self.calc_freq()
+
+	def calc_freq(self):
+		freq = [0]*3
+		for x in self.activities:
+			freq[x] += 1
+		print(self.split, "freq: ", freq)
 
 	def remove_points(self):
 		erase_indices = []
@@ -319,8 +330,8 @@ class WESADDatasetFine(WESADDataset):
 		y = torch.tensor(y, dtype=torch.int64)
 		return X, y
 
-dataset = WESADDataset(split="train", subject=8)
-dataset.__getitem__(3)
+#dataset = WESADDataset(split="train", subject=8)
+#dataset.__getitem__(3)
 '''import matplotlib.pyplot as plt
 for i in range(8):
 	x = range(len(dataset.signals[i]))
