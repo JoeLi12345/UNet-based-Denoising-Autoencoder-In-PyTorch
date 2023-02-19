@@ -31,8 +31,8 @@ import wandb
 
 
 
-def init_wandb():
-	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
+def init_wandb(name=None):
+	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True, name=name)
 	global cfg
 	cfg = wandb.config
 	global checkpoints_dir
@@ -98,6 +98,8 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 			running_train_loss.append(loss.item())
 			loss.backward()
 			optimizer.step()
+			#if epoch == 0:
+				#print(batch_idx, ":", sorted(Counter(activity).items()))
 
 		mean_train_loss = np.array(running_train_loss).mean()
 		train_epoch_loss.append(mean_train_loss)
@@ -209,8 +211,8 @@ def test(subject, remove_percent=0.0):
 	wandb.log({"test_loss": np.array(running_test_loss).mean()})
 
 	print("frequency= ", frequency)
-	print(preds)
-	print(target)
+	'''print(preds)
+	print(target)'''
 
 	metric1 = MulticlassAccuracy(num_classes=3, average='micro')
 	metric2 = MulticlassAccuracy(num_classes=3, average='macro')
@@ -219,14 +221,14 @@ def test(subject, remove_percent=0.0):
 	preds = torch.tensor(preds)
 	target = torch.tensor(target)
 	acc, acc1, f1, f11 = metric1(preds, target), metric2(preds, target), metric3(preds, target), metric4(preds, target)
-	print(acc, acc1, f1, f11)
+	print("supervised accuracy", acc.tolist(), acc1.tolist(), f1.tolist(), f11.tolist())
 	wandb.log({"accuracy": acc1})
-	return acc, acc1, f1, f11
+	return acc.tolist(), acc1.tolist(), f1.tolist(), f11.tolist()
 
-init_wandb()
-train(7, 0.97)
-print(test(7, 0.97))
 '''init_wandb()
+train(7, 0.99)
+print(test(7, 0.99))
+init_wandb()
 overall_acc = 0
 num_subjects = 15
 ord_subjects = np.array([8])

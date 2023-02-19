@@ -59,7 +59,7 @@ def train(subject):
 
 	#learning rate, optimizer, loss function
 	lr = cfg.lr
-	optimizer = optim.Adam(model.parameters(), lr = lr)
+	optimizer = optim.AdamW(model.parameters(), lr = lr)
 	loss_fn = nn.MSELoss()
 
 	train_epoch_loss, val_epoch_loss = [], []
@@ -69,7 +69,7 @@ def train(subject):
 
 	patience = 30
 	current_repeat = 0
-	eps = 0.0001
+	eps = 0.00001
 	#epochs for training and validation
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		epoch_train_start_time = time.time()
@@ -142,3 +142,7 @@ def train(subject):
 	h, m = divmod(m, 60)
 	print(f'\ntotal time taken for running this script: {int(h)} hrs {int(m)} mins {int(s)} secs')
 	print('\nFin.')
+
+
+init_wandb()
+train(7)

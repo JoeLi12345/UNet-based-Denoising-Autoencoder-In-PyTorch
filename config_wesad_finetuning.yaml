@@ -1,6 +1,6 @@
 # depth of UNet 
 depth : 3
 lr : 0.000006481460531048047
-epochs : 100        
+epochs : 1500       
 batch_size : 35 
-checkpoint_path : '/home/joe/Desktop/unet/UNet-based-Denoising-Autoencoder-In-PyTorch/wandb/run-20221231_212349-c0ymgjx9/files/checkpoints/best.pt'
+checkpoint_path : '/home/joe/Desktop/unet/UNet-based-Denoising-Autoencoder-In-PyTorch/wandb/run-20230216_011436-2hrwqvnp/files/checkpoints/best.pt'

@@ -1,4 +1,4 @@
 depth : 3
 lr : 0.000006481460531048047
-epochs : 1000
+epochs : 1500
 batch_size : 35

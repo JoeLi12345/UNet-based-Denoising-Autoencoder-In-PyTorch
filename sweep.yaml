@@ -1,9 +1,12 @@
-program: config_wesad_pretraining.yaml
+program: config_wesad_supervised.yaml
 method: random
 parameters:
   lr:
     min: 1.0e-7
     max: 1.0e-5
+  depth:
+    min: 2
+    max: 6
   batch_size:
     min: 32
-    max: 256
+    max: 128

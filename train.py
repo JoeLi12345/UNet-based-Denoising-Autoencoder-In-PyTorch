@@ -206,6 +206,7 @@ def train():
 		epoch_val_time = time.time() - epoch_val_start_time
 		m,s = divmod(epoch_val_time, 60)
 		h,m = divmod(m, 60)
+		running_train_loss, running_val_loss = [], []
 		#print('\nepoch val   time: {} hrs {} mins {} secs'.format(int(h), int(m), int(s)))
 	total_script_time = time.time() - script_time
 	m, s = divmod(total_script_time, 60)
