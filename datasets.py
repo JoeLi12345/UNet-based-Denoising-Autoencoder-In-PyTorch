@@ -330,11 +330,12 @@ class WESADDatasetFine(WESADDataset):
 		y = torch.tensor(y, dtype=torch.int64)
 		return X, y
 
-#dataset = WESADDataset(split="train", subject=8)
+'''dataset = WESADDataset(split="train", subject=8)
 #dataset.__getitem__(3)
-'''import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 for i in range(8):
-	x = range(len(dataset.signals[i]))
-	y = dataset.signals[i]
+	x = range(len(dataset.signals[i][2000000:2100000]))
+	y = dataset.signals[i][2000000:2100000]
 	plt.plot(x, y, color="red")
+	plt.ylabel()
 	plt.show()'''

@@ -25,8 +25,8 @@ from torch.utils.data import DataLoader
 import wandb
 
 
-def init_wandb():
-	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True)
+def init_wandb(name=None):
+	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True, name=name)
 	global checkpoints_dir
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
@@ -144,5 +144,5 @@ def train(subject):
 	print('\nFin.')
 
 
-init_wandb()
-train(7)
+'''init_wandb()
+train(7)'''
