@@ -1,11 +1,3 @@
-import pickle
-def unpickle_iter(file):
-    try:
-        while True:
-             yield pickle.load(file)
-    except EOFError:
-        raise StopIteration
+import sys
 
-with open('../WESAD/S2/S2.pkl', 'rb') as file:
-    for item in unpickle_iter(file):
-        print(item)
+print(int(sys.argv[-1]))

@@ -67,7 +67,7 @@ def train(subject):
 	epochs = cfg.epochs
 	min_val_loss = 1000000000
 
-	patience = 30
+	patience = 100
 	current_repeat = 0
 	eps = 0.00001
 	#epochs for training and validation
