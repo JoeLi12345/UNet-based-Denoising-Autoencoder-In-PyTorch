@@ -2,12 +2,10 @@ import wesad_pretraining
 import wesad_finetuning
 import wesad_supervised
 import statistics as stats
-import sys
 
-def ssl(subject=8):
+def ssl(subject=12):
 	print("WESAD PRETRAINING")
-	pretrain_checkpoints_dir = wesad_pretraining.init_wandb(name=f"PT_{subject}")
-	wesad_pretraining.train(subject)
+	pretrain_checkpoints_dir = '/home/joe/Desktop/unet/UNet-based-Denoising-Autoencoder-In-PyTorch/wandb/run-20230531_175616-zw2mddnw/files/checkpoints'
 	arr = [0.95, 0.995]
 	finetuning = []
 	supervised = []

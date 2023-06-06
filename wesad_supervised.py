@@ -30,6 +30,10 @@ from torch.utils.data import DataLoader
 import wandb
 
 
+sz1, sz2 = 0, 0
+sz3, sz4 = 0, 0
+sz5, sz6 = 0, 0
+
 
 def init_wandb(name=None):
 	wandb.init(project="unet_ssl", entity="jli505", config=config, reinit=True, name=name)
@@ -44,7 +48,7 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 	if train_dataset is None:
 		train_dataset = WESADDatasetFine(split="train", subject=subject, remove_percent=remove_percent, transform=None)
 	val_dataset = WESADDatasetFine(split="validation", subject=subject, remove_percent=remove_percent, transform=None)
-	
+	sz1, sz2 = len(train_dataset), len(val_dataset)
 	print("train, val = ",len(train_dataset), len(val_dataset))
 	unet_pretrained = UNet(in_channels=train_dataset.in_channels, n_classes=train_dataset.in_channels, depth=config['depth'], wf=2, padding=True)
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -58,6 +62,7 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 
 	print('\nlen(train_loader): {}  @bs={}'.format(len(train_loader), batch_size))
 	print('len(val_loader)  : {}  @bs={}'.format(len(val_loader), batch_size))
+	sz3, sz4 = len(train_loader), len(val_loader)
 
 	#defines the model used in this fine tuning task
 	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=64) # try decreasing the depth value if there is a memory error
@@ -173,6 +178,7 @@ def test(subject, remove_percent=0.0):
 	test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 	unet_pretrained = UNet(in_channels=test_dataset.in_channels, n_classes = test_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
 	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=64)
+	sz5, sz6 = len(test_dataset), len(test_loader)
 
 	checkpoint = torch.load(f"{checkpoints_dir}/best.pt") #replace this with the model path
 	model.load_state_dict(checkpoint['model_state_dict'])
@@ -225,7 +231,18 @@ def test(subject, remove_percent=0.0):
 	wandb.log({"accuracy": acc1})
 	return acc.tolist(), acc1.tolist(), f1.tolist(), f11.tolist()
 
-'''init_wandb()
+
+'''init_wandb(name="temp_SV_14_0.95")
+train(14, 0.95)
+print(test(14, 0.95))
+print("train, val dataset length: {}, {}; loader length: {}, {}; test length: {}, {}".format(sz1, sz2, sz3, sz4, sz5, sz6))
+
+init_wandb(name="temp_SV_14_0.995")
+train(14, 0.995)
+print(test(14, 0.995))
+print("train, val dataset length: {}, {}; loader length: {}, {}; test length: {}, {}".format(sz1, sz2, sz3, sz4, sz5, sz6))
+
+init_wandb()
 train(7, 0.99)
 print(test(7, 0.99))
 init_wandb()

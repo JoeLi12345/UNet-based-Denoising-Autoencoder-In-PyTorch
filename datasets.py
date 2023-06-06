@@ -273,7 +273,7 @@ class WESADDataset(torch.utils.data.Dataset):
 		cnt=0
 		for i in subset_indices:
 			for j in range(len(noised)):
-				noised[j][i] = -10000
+				noised[j][i] = 0
 				cnt += 1
 		reg = torch.tensor(reg, dtype=torch.float)
 		noised = torch.tensor(noised, dtype=torch.float)
