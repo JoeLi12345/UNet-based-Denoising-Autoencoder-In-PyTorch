@@ -5,8 +5,8 @@ import statistics as stats
 
 def ssl(subject=12):
 	print("WESAD PRETRAINING")
-	pretrain_checkpoints_dir = '/home/joe/Desktop/unet/UNet-based-Denoising-Autoencoder-In-PyTorch/wandb/run-20230531_175616-zw2mddnw/files/checkpoints'
-	arr = [0.95, 0.995]
+	pretrain_checkpoints_dir = '/root/unet/wandb/run-20230608_032628-ws92qsg6/files/checkpoints'
+	arr = [0.997, 0.999, 0.9995]
 	finetuning = []
 	supervised = []
 	for remove_percent in arr:

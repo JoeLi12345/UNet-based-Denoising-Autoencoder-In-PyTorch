@@ -2,13 +2,11 @@ import wesad_pretraining
 import wesad_finetuning
 import wesad_supervised
 import statistics as stats
-import sys
 
-def ssl(subject=12):
+def ssl(subject=7):
 	print("WESAD PRETRAINING")
-	pretrain_checkpoints_dir = wesad_pretraining.init_wandb(name=f"PT_{subject}")
-	wesad_pretraining.train(subject)
-	arr = [0.997, 0.999]
+	pretrain_checkpoints_dir = '/root/unet/wandb/run-20230608_032504-4jpfctso/files/checkpoints'
+	arr = [0.997, 0.999, 0.9995]
 	finetuning = []
 	supervised = []
 	for remove_percent in arr:

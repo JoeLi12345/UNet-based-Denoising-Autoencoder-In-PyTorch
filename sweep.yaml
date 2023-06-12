@@ -1,12 +1,7 @@
 program: config_wesad_supervised.yaml
 method: random
 parameters:
-  lr:
-    min: 1.0e-7
-    max: 1.0e-5
-  depth:
-    min: 2
-    max: 6
-  batch_size:
-    min: 32
-    max: 128
+  hidden_dim:
+    distribution: int_uniform
+    min: 8
+    max: 30

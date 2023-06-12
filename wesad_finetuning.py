@@ -70,7 +70,7 @@ def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None):
 	print("Loss =", loss)
 
 	#defines the model used in this fine tuning task
-	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=64) # try decreasing the depth value if there is a memory error
+	model = UNet_Fine(unet_pretrained, num_classes=3, hidden_dim=cfg.hidden_dim, window_length=64) # try decreasing the depth value if there is a memory error
 	model.to(device)
 
 	#learning rate, optimizer, loss function
@@ -84,7 +84,7 @@ def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None):
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
 
-	patience = 100
+	patience = 2000
 	current_repeat = 0
 	eps = 0.000001
 	
