@@ -5,10 +5,10 @@ import statistics as stats
 
 def ssl(subject=11):
 	print("WESAD PRETRAINING")
-	pretrain_checkpoints_dir = '/root/unet/wandb/run-20230608_032600-dqy2k9t0/files/checkpoints'
-	#pretrain_checkpoints_dir = wesad_pretraining.init_wandb(name=f"PT_{subject}")
-	#wesad_pretraining.train(subject)
-	arr = [0.9995]
+	#pretrain_checkpoints_dir = '/root/unet/wandb/run-20230608_032600-dqy2k9t0/files/checkpoints'
+	pretrain_checkpoints_dir = wesad_pretraining.init_wandb(name=f"PT_{subject}")
+	wesad_pretraining.train(subject)
+	'''arr = [0.9995]
 	finetuning = []
 	supervised = []
 	for remove_percent in arr:
@@ -41,6 +41,6 @@ def ssl(subject=11):
 		print(arr[i], ":", finetuning[i])
 	print("SUPERVISED")
 	for i in range(len(supervised)):
-		print(arr[i], ":", supervised[i])
+		print(arr[i], ":", supervised[i])'''
 
-ssl()
+#ssl()

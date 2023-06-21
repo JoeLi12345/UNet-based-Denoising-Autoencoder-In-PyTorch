@@ -35,10 +35,10 @@ def init_wandb(name=None):
 	print("cfg.lr=", cfg.lr)
 	return checkpoints_dir
 
-def train(subject):
+def train(subject, mask_value=0, mask_amount=0.15):
 	torch.manual_seed(1347)
-	train_dataset = WESADDataset(split="train", subject=subject)
-	val_dataset = WESADDataset(split="validation", subject=subject)
+	train_dataset = WESADDataset(split="train", subject=subject, mask_value=mask_value, mask_amount=mask_amount)
+	val_dataset = WESADDataset(split="validation", subject=subject, mask_value=mask_value, mask_amount=mask_amount)
 	print("train, val = ", len(train_dataset), len(val_dataset))
 	
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -144,5 +144,5 @@ def train(subject):
 	print('\nFin.')
 
 
-#init_wandb(name="PT_11_negative_mask")
-#train(11)
+init_wandb(name="PT_11_negative_mask")
+train(11)

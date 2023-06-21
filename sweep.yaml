@@ -1,8 +1,8 @@
 method: random
 parameters:
   lr:
-    max: 0.0001
-    min: 0.00001
+    max: 0.001
+    min: 0.0001
   batch_size:
-    max: 64
-    min: 4
+    max: 128
+    min: 16
