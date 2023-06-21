@@ -69,7 +69,7 @@ def train(subject):
 
 	patience = 100
 	current_repeat = 0
-	eps = 0.00001
+	eps = 0.000001
 	#epochs for training and validation
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		epoch_train_start_time = time.time()
@@ -144,5 +144,5 @@ def train(subject):
 	print('\nFin.')
 
 
-'''init_wandb()
-train(7)'''
+#init_wandb(name="PT_11_negative_mask")
+#train(11)

@@ -43,10 +43,10 @@ def init_wandb(name=None):
 	checkpoints_dir = f"{wandb.run.dir}/checkpoints"
 	os.makedirs(checkpoints_dir, exist_ok = True)
 
-def train(subject, remove_percent=0.0, train_dataset=None):
+def train(subject, remove_percent=0.0, train_dataset=None, seed=None):
 	torch.manual_seed(1347)
 	if train_dataset is None:
-		train_dataset = WESADDatasetFine(split="train", subject=subject, remove_percent=remove_percent, transform=None)
+		train_dataset = WESADDatasetFine(split="train", subject=subject, remove_percent=remove_percent, seed=seed)
 	val_dataset = WESADDatasetFine(split="validation", subject=subject, remove_percent=remove_percent, transform=None)
 	sz1, sz2 = len(train_dataset), len(val_dataset)
 	print("train, val = ",len(train_dataset), len(val_dataset))
@@ -77,12 +77,14 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
 
-	patience = 2000
-	current_repeat = 0
+	patience = 5000
+	current_repeat_loss = 0
+	current_repeat_acc = 0
 	eps = 0.0000001
 
 	#training and validation - keep track of the minimum validation loss so that the model updates whenever it achieves a smaller validation loss
 	min_val_loss = 1000000000
+	max_val_acc = 0
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		running_train_loss, running_val_loss = [], []
 		epoch_train_start_time = time.time()
@@ -138,6 +140,7 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 
 		#logging the losses on wandb
 		mean_val_loss = np.array(running_val_loss).mean()
+		val_acc = val_correct/val_total
 		if mean_val_loss < min_val_loss:
 			torch.save({
 			'epoch': epoch,
@@ -145,13 +148,19 @@ def train(subject, remove_percent=0.0, train_dataset=None):
 			'optimizer_state_dict': optimizer.state_dict(),
 			'loss': loss
 			}, f"{checkpoints_dir}/best.pt") #replace path
+
 		if min_val_loss-mean_val_loss < eps:
-			current_repeat += 1
+			current_repeat_loss += 1
 		else:
-			current_repeat = 0
-		if current_repeat == patience:
+			current_repeat_loss = 0
+		if val_acc-max_val_acc < eps:
+			current_repeat_acc += 1
+		else:
+			current_repeat_acc = 0
+		if current_repeat_loss >= patience and current_repeat_acc >= patience:
 			break
 		min_val_loss = min(min_val_loss, mean_val_loss)	
+		max_val_acc = max(max_val_acc, val_acc)
 
 		val_epoch_loss.append(mean_val_loss)
 		wandb.log({"val_loss":mean_val_loss})
@@ -177,7 +186,7 @@ def test(subject, remove_percent=0.0):
 
 	test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 	unet_pretrained = UNet(in_channels=test_dataset.in_channels, n_classes = test_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
-	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=64)
+	model = UNet_Fine(unet_pretrained, num_classes=3, hidden_dim=cfg.hidden_dim, window_length=64)
 	sz5, sz6 = len(test_dataset), len(test_loader)
 
 	checkpoint = torch.load(f"{checkpoints_dir}/best.pt") #replace this with the model path

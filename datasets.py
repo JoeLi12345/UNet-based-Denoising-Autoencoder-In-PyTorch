@@ -273,7 +273,7 @@ class WESADDataset(torch.utils.data.Dataset):
 		cnt=0
 		for i in subset_indices:
 			for j in range(len(noised)):
-				noised[j][i] = 0
+				noised[j][i] = -10000
 				cnt += 1
 		reg = torch.tensor(reg, dtype=torch.float)
 		noised = torch.tensor(noised, dtype=torch.float)
@@ -287,8 +287,9 @@ class WESADDataset(torch.utils.data.Dataset):
 
 #data loader for the transfer learning task
 class WESADDatasetFine(WESADDataset):
-	def __init__(self, split, subject, remove_percent=0.0, transform=None):
+	def __init__(self, split, subject, remove_percent=0.0, seed=None, transform=None):
 		super().__init__(split, subject, transform)
+		self.seed = seed
 		self.remove_points()
 		self.remove_percent = remove_percent
 		if split == "train":
@@ -313,13 +314,28 @@ class WESADDatasetFine(WESADDataset):
 			self.same_label.pop(ind)
 
 	def remove_labeled(self):
-		erase_indices = random.sample(range(len(self.data)), int(self.remove_percent*len(self.data)))
+		if self.seed is not None:
+			random.seed(self.seed)
+		for i in range(3):
+			potential_indices = []
+			for j in range(len(self.activities)):
+				if self.activities[j] == i:
+					potential_indices.append(j)
+			erase_indices = random.sample(potential_indices, int(self.remove_percent*len(potential_indices)))
+			erase_indices.sort()
+			erase_indices.reverse()
+			for ind in erase_indices:
+				self.data.pop(ind)
+				self.activities.pop(ind)
+				self.same_label.pop(ind)
+				
+		'''erase_indices = random.sample(range(len(self.data)), int(self.remove_percent*len(self.data)))
 		erase_indices.sort()
 		erase_indices.reverse()
 		for ind in erase_indices:
 			self.data.pop(ind)
 			self.activities.pop(ind)
-			self.same_label.pop(ind)
+			self.same_label.pop(ind)'''
 
 	def __getitem__(self, index):
 		X = self.data[index]

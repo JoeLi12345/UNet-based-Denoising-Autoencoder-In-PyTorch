@@ -40,11 +40,11 @@ def init_wandb(name=None):
 
 #loads the pretrained model from a saved checkpoint
 
-def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None):
+def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None, seed=None):
 	torch.manual_seed(1347)
 	device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 	print('device: ', device)
-	train_dataset = WESADDatasetFine(split="train", subject=subject, remove_percent=remove_percent)
+	train_dataset = WESADDatasetFine(split="train", subject=subject, remove_percent=remove_percent, seed=seed)
 	val_dataset = WESADDatasetFine(split="validation", subject=subject, remove_percent=remove_percent)
 	print("train, val = ",len(train_dataset), len(val_dataset))
 	script_time = time.time()
@@ -84,9 +84,10 @@ def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None):
 	train_epoch_loss, val_epoch_loss = [], []
 	epochs_till_now = 0
 
-	patience = 2000
-	current_repeat = 0
-	eps = 0.000001
+	patience = 5000
+	current_repeat_loss = 0
+	current_repeat_acc = 0
+	eps = 0.0000001
 	
 	for epoch in range(epochs_till_now, epochs_till_now+epochs):
 		print("Epoch {}:\n".format(epoch))
@@ -166,16 +167,21 @@ def train(subject, remove_percent=0.0, pretrain_checkpoints_dir=None):
 		print("val loss: {}".format(mean_val_loss))
 		print("val acc: {}".format(val_acc))
 		if min_val_loss-mean_val_loss < eps:
-			current_repeat += 1
+			current_repeat_loss += 1
 		else:
-			current_repeat = 0
-		if current_repeat == patience:
+			current_repeat_loss = 0
+		if val_acc-max_val_acc < eps:
+			current_repeat_acc += 1
+		else:
+			current_repeat_acc = 0
+		if current_repeat_loss >= patience and current_repeat_acc >= patience:
 			break
 		min_val_loss = min(min_val_loss, mean_val_loss)
 		max_val_acc = max(max_val_acc, val_acc)
 	total_script_time = time.time() - script_time
 	m, s = divmod(total_script_time, 60)
 	h, m = divmod(m, 60)
+	train_dataset.calc_freq()
 	print("min val loss: {}, max val acc: {}".format(min_val_loss, max_val_acc))
 	print(f'\ntotal time taken for running this script: {int(h)} hrs {int(m)} mins {int(s)} secs')
 	print('\nFin.')
@@ -187,7 +193,7 @@ def model_test(subject, remove_percent, model_path):
 	test_loader = torch.utils.data.DataLoader(test_dataset, batch_size = config['batch_size'], shuffle = False)
 	
 	unet_pretrained = UNet(in_channels=test_dataset.in_channels, n_classes = test_dataset.in_channels, depth = config['depth'], wf=2, padding = True)
-	model = UNet_Fine(unet_pretrained, num_classes=3, window_length=64)
+	model = UNet_Fine(unet_pretrained, num_classes=3, hidden_dim=cfg.hidden_dim, window_length=64)
 
 	checkpoint = torch.load(model_path) #replace this with the model path
 	model.load_state_dict(checkpoint['model_state_dict'])
